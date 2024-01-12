@@ -269,11 +269,11 @@
             gamePaused = !gamePaused;
             if (gamePaused) {
                 clearInterval(appearanceInterval);
-                pauseBtn.textContent = 'Resume';
+                pauseBtn.textContent = 'Continuar';
             } else {
                 createFood();
                 appearanceInterval = setInterval(createFood, 2000); // Create food every 2 seconds
-                pauseBtn.textContent = 'Pause';
+                pauseBtn.textContent = 'Pausa';
             }
         }
 
