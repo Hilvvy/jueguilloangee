@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: "Lucida Console", Monaco, monospace;
+        }
+
+        #menu-screen {
+            width: 100vw;
+            height: 100vh;
+            background-color: #22333b;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+        }
+
+        #start-btn {
+            font-size: 5vw;
+            background-color: #0d3b66;
+            padding: 1vw 2vw;
+            border: none;
+            color: #ffffff;
+            cursor: pointer;
+        }
+
+        #game-container {
+            display: none;
+            width: 100vw;
+            height: 100vh;
+            background-color: #c7f9cc;
+            position: relative;
+            border: 0.5vw solid #A7C957;
+            /* Border color around the playable area */
+            box-sizing: border-box;
+            /* Include the border in the width and height */
+        }
+
+        #catcher {
+            width: 22vw;
+            /* Adjusted size for mobile screens */
+            height: 22vw;
+            /* Adjusted size for mobile screens */
+            background-image: url('animations/angestand.png');
+            background-repeat: no-repeat;
+            background-size: cover;
+            position: absolute;
+            bottom: 5vh;
+            left: 50%;
+            /* Center the catcher */
+            transform: translateX(-50%);
+            /* Adjusted position for centering */
+            transition: transform 0.2s ease-in-out;
+            /* Animation transition */
+        }
+
+        .moveLeft {
+            background-image: url('animations/angeleft.png');
+            background-repeat: no-repeat;
+            background-size: cover;
+            -webkit-transform: scaleX(1);
+            transform: scaleX(1);
+        }
+
+        .moveRight {
+            background-image: url('animations/angeleft.png');
+            background-repeat: no-repeat;
+            background-size: cover;
+            -webkit-transform: scaleX(-1);
+            transform: scaleX(-1);
+        }
+
+        .food {
+            width: 8vw;
+            /* Adjusted size for mobile screens */
+            height: 8vw;
+            /* Adjusted size for mobile screens */
+            background-image: url('animations/gift.png');
+            background-repeat: no-repeat;
+            background-size: cover;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        #score {
+            position: absolute;
+            top: 5vh;
+            right: 5vw;
+            font-size: 4vw;
+            /* Adjusted size for mobile screens */
+            color: #2ecc71;
+        }
+
+        #pause-btn {
+            position: absolute;
+            top: 5vh;
+            left: 5vw;
+            font-size: 4vw;
+            /* Adjusted size for mobile screens */
+            color: #191919;
+            cursor: pointer;
+        }
+
+        #lives {
+            position: absolute;
+            top: 5vh;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 4vw;
+            color: #e74c3c;
+        }
+
+        #game-over-screen {
+            width: 100vw;
+            height: 100vh;
+            background-color: #3498db;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        #max-score {
+            font-size: 5vw;
+            margin-bottom: 2vw;
+        }
+
+        #retry-btn {
+            font-size: 5vw;
+            background-color: #2ecc71;
+            padding: 1vw 2vw;
+            border: none;
+            color: #ffffff;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="menu-screen">
+        <h1>Gift Catcher!</h1>
+        <p id="max-score">Máxima Puntuación: 0</p>
+        <button id="start-btn" onclick="startGame()">Iniciar</button>
+    </div>
+
+    <div id="game-container">
+        <div id="catcher"></div>
+        <div id="score">Puntuación: 0</div>
+        <div id="lives">Vidas: 6</div>
+        <div id="pause-btn" onclick="togglePause()">Pausa</div>
+    </div>
+
+    <div id="game-over-screen">
+        <h1>Game Over!</h1>
+        <p id="max-score">Puntuación máxima: 0</p>
+        <button id="retry-btn" onclick="resetGame()">Reintentar</button>
+    </div>
+
+    <script>
+        const menuScreen = document.getElementById('menu-screen');
+        const gameContainer = document.getElementById('game-container');
+        const catcher = document.getElementById('catcher');
+        const scoreElement = document.getElementById('score');
+        const livesElement = document.getElementById('lives');
+        const pauseBtn = document.getElementById('pause-btn');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const maxScoreElement = document.getElementById('max-score');
+        const pick = new Audio("audio/pickupCoin.wav");
+        const hit = new Audio("audio/hitHurt.wav");
+        const dead = new Audio("audio/explosion.wav")
+        let score = 0;
+        let lives = 6; // Initial lives count
+        let gamePaused = false;
+        let fallSpeed = 5; // Initial falling speed
+        let maxConsecutiveCubes = 5; // Maximum number of consecutive cubes
+        let fallingCubes = []; // Array to keep track of falling cubes
+        let appearanceInterval;
+        let elapsedSeconds = 0;
+
+        function createFood() {
+            if (!gamePaused && fallingCubes.length < maxConsecutiveCubes) {
+                const food = document.createElement('div');
+                food.className = 'food';
+                food.style.left = `${Math.random() * (gameContainer.clientWidth - 20)}px`;
+                gameContainer.appendChild(food);
+
+                fallingCubes.push(food);
+
+                const fallInterval = setInterval(() => {
+                    if (!gamePaused) {
+                        const topPosition = food.offsetTop;
+                        food.style.top = `${topPosition + fallSpeed}px`;
+
+                        if (topPosition > gameContainer.clientHeight) {
+                            clearInterval(fallInterval);
+                            gameContainer.removeChild(food);
+                            fallingCubes = fallingCubes.filter(cube => cube !== food);
+                            loseLife(); // Lose a life when a cube reaches the bottom
+                            createFood(); // Create a new cube after one has cleared
+                        }
+
+                        checkCollision(food);
+                    }
+                }, 16);
+            }
+        }
+
+        function checkCollision(food) {
+            const catcherRect = catcher.getBoundingClientRect();
+            const foodRect = food.getBoundingClientRect();
+
+            if (
+                foodRect.bottom >= catcherRect.top &&
+                foodRect.top <= catcherRect.bottom &&
+                foodRect.right >= catcherRect.left &&
+                foodRect.left <= catcherRect.right
+            ) {
+                gameContainer.removeChild(food);
+                fallingCubes = fallingCubes.filter(cube => cube !== food);
+                score++;
+                scoreElement.textContent = `Puntuación: ${score}`;
+                pick.play();
+                pick.currentTime=0;
+                createFood(); // Create a new cube after one has been caught
+            }
+        }
+
+        function moveCatcher(event) {
+            const xPosition = event.clientX || event.touches[0].clientX;
+            const containerRect = gameContainer.getBoundingClientRect();
+            const minX = containerRect.left + catcher.clientWidth / 2;
+            const maxX = containerRect.right - catcher.clientWidth / 2;
+            const x = Math.min(Math.max(xPosition - catcher.clientWidth / 2, containerRect.left), containerRect.right - catcher.clientWidth);
+
+            catcher.style.left = `${x}px`;
+
+            if (xPosition < minX + (maxX - minX) / 3) {
+                // Move left when the mouse is in the left third of the container
+                catcher.classList.add('moveLeft');
+                catcher.classList.remove('moveRight');
+                catcher.style.backgroundImage = "url('animations/angeleft.png')";
+                catcher.style.transform = 'scaleX(1)'
+            } else if (xPosition > maxX - (maxX - minX) / 3) {
+                // Move right when the mouse is in the right third of the container
+                catcher.classList.add('moveRight');
+                catcher.classList.remove('moveLeft');
+                catcher.style.backgroundImage = "url('animations/angeleft.png')";
+                catcher.style.transform = 'scaleX(-1)';
+            } else {
+                // Reset to default standing image when the mouse is in the middle third of the container
+                catcher.classList.remove('moveLeft', 'moveRight');
+                catcher.style.backgroundImage = "url('animations/angestand.png')";
+            }
+        }
+
+        function togglePause() {
+            gamePaused = !gamePaused;
+            if (gamePaused) {
+                clearInterval(appearanceInterval);
+                pauseBtn.textContent = 'Resume';
+            } else {
+                createFood();
+                appearanceInterval = setInterval(createFood, 2000); // Create food every 2 seconds
+                pauseBtn.textContent = 'Pause';
+            }
+        }
+
+        function startGame() {
+            fallSpeed = 5
+            fallingCubes.forEach(cube => cube.remove());
+            fallingCubes = [];
+            menuScreen.style.display = 'none';
+            gameContainer.style.display = 'block';
+            createFood();
+            appearanceInterval = setInterval(createFood, 2000); // Create food every 2 seconds
+            setInterval(increaseFallSpeed, 10000); // Increase falling speed every 10 seconds
+            setInterval(updateElapsedTime, 1000); // Update elapsed time every second
+        }
+
+        function increaseFallSpeed() {
+            if (elapsedSeconds < 25) {
+                fallSpeed += 2; // Increase falling speed by 2 pixels every time this is called
+            }
+        }
+
+        function updateElapsedTime() {
+            elapsedSeconds++;
+        }
+
+        function loseLife() {
+            lives--;
+            livesElement.textContent = `Vidas: ${lives}`;
+            hit.play();
+            hit.currentTime=0;
+            if (lives === 0) {
+                dead.play();
+                dead.currentTime=0;
+                endGame();
+
+            }
+        }
+
+        function endGame() {
+            clearInterval(appearanceInterval);
+            maxScoreElement.textContent = `Max Score: ${score}`;
+            gameOverScreen.style.display = 'flex';
+            resetGame();
+            pick = currentTime=0
+        }
+
+        function resetGame() {
+            fallingCubes.forEach(cube => cube.remove());
+            fallingCubes = [];
+            fallSpeed = 5;
+
+            score = 0;
+            lives = 6;
+            scoreElement.textContent = `Score: ${score}`;
+            livesElement.textContent = `Lives: ${lives}`;
+            gamePaused = false;
+            elapsedSeconds = 0;
+
+            catcher.style.left = '50%';
+            catcher.style.backgroundImage = "url('animations/angestand.png')";
+
+            gameContainer.style.display = 'none';
+            menuScreen.style.display = 'flex';
+            gameOverScreen.style.display = 'none';
+        }
+
+        // Initial standing animation
+        catcher.style.left = '50%';
+
+        // Event listener for window resize to reposition the catcher
+        window.addEventListener('resize', () => {
+            const containerRect = gameContainer.getBoundingClientRect();
+            const minX = containerRect.left + catcher.clientWidth / 2;
+            const maxX = containerRect.right - catcher.clientWidth / 2;
+            catcher.style.left = `${Math.min(Math.max(parseInt(catcher.style.left), minX), maxX)}px`;
+        });
+
+        // Event listener for mouse and touch movement
+        gameContainer.addEventListener('mousemove', moveCatcher);
+        gameContainer.addEventListener('touchmove', (event) => {
+            event.preventDefault(); // Prevent scrolling on touch
+            moveCatcher(event);
+        });
+    </script>
+</body>
+
+</html>
